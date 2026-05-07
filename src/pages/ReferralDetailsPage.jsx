@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import BackendStatus from '../components/common/BackendStatus.jsx';
+import { markReferralUsed, revealReferralSecret } from '../services/referralService.js';
 import { downloadReferral } from '../utilities/downloadReferral.js';
 import '../styles/dashboard.css';
 import '../styles/marketplace.css';
@@ -14,34 +16,90 @@ function getTimeLeft(expiry) {
 	return `${hours}h ${minutes}m`;
 }
 
-function ReferralDetailsPage({ reservedReferrals }) {
-	const { wallet, disconnectWallet } = useWallet();
+function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
+	const { walletAddress, disconnectWallet } = useWallet();
 	const navigate = useNavigate();
 	const { id } = useParams();
-	const referral = useMemo(
+	const reservedReferral = useMemo(
 		() => reservedReferrals.find((item) => String(item.id) === id),
 		[reservedReferrals, id]
 	);
-	const [timeLeft, setTimeLeft] = useState(referral ? getTimeLeft(referral.expiry) : '0h 0m');
+	const [revealedReferral, setRevealedReferral] = useState(null);
+	const [isRevealing, setIsRevealing] = useState(true);
+	const [revealError, setRevealError] = useState('');
+	const [useError, setUseError] = useState('');
+	const [isMarkingUsed, setIsMarkingUsed] = useState(false);
+	const [referralStatus, setReferralStatus] = useState(reservedReferral?.status || 'reserved');
+	const referral = revealedReferral || reservedReferral;
+	const [timeLeft, setTimeLeft] = useState(reservedReferral ? getTimeLeft(reservedReferral.expiry) : '0h 0m');
 	const [copied, setCopied] = useState(false);
 
 	useEffect(() => {
-		if (!wallet) navigate('/');
-	}, [wallet, navigate]);
+		console.log('CONNECTED WALLET:', walletAddress);
+		if (!walletAddress) navigate('/');
+	}, [walletAddress, navigate]);
 
 	useEffect(() => {
-		if (!referral) {
+		setReferralStatus(reservedReferral?.status || 'reserved');
+	}, [reservedReferral]);
+
+	useEffect(() => {
+		if (!walletAddress || !id) {
+			return;
+		}
+
+		if (referralStatus === 'used') {
+			setIsRevealing(false);
+			return;
+		}
+
+		let isMounted = true;
+
+		setIsRevealing(true);
+		setRevealError('');
+
+		console.log('CONNECTED WALLET:', walletAddress);
+
+		revealReferralSecret(walletAddress, id)
+			.then((secretReferral) => {
+				if (!isMounted) return;
+
+				setRevealedReferral({
+					...reservedReferral,
+					...secretReferral,
+					expiry: reservedReferral?.expiry || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+					validatorPubkey: reservedReferral?.validatorPubkey || '0xb7f9c2a641e981f3d4c290b9a27e5f44c61702d8a13c9e5d6b21c442ab81f930',
+				});
+			})
+			.catch((error) => {
+				if (!isMounted) return;
+
+				setRevealError(error.message || 'Unable to reveal this referral secret.');
+			})
+			.finally(() => {
+				if (isMounted) {
+					setIsRevealing(false);
+				}
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [walletAddress, id, reservedReferral, referralStatus]);
+
+	useEffect(() => {
+		if (!reservedReferral?.expiry) {
 			return undefined;
 		}
 
 		const intervalId = window.setInterval(() => {
-			setTimeLeft(getTimeLeft(referral.expiry));
+			setTimeLeft(getTimeLeft(reservedReferral.expiry));
 		}, 60000);
 
-		setTimeLeft(getTimeLeft(referral.expiry));
+		setTimeLeft(getTimeLeft(reservedReferral.expiry));
 
 		return () => window.clearInterval(intervalId);
-	}, [referral]);
+	}, [reservedReferral]);
 
 	const handleDisconnect = () => {
 		disconnectWallet();
@@ -49,7 +107,7 @@ function ReferralDetailsPage({ reservedReferrals }) {
 	};
 
 	const handleCopy = async () => {
-		if (!referral) {
+		if (!referral?.secret) {
 			return;
 		}
 
@@ -58,7 +116,34 @@ function ReferralDetailsPage({ reservedReferrals }) {
 		window.setTimeout(() => setCopied(false), 1600);
 	};
 
-	if (!referral) {
+	const handleMarkUsed = () => {
+		if (isMarkingUsed || referralStatus === 'used') {
+			return;
+		}
+
+		console.log('CONNECTED WALLET:', walletAddress);
+
+		if (!walletAddress) {
+			setUseError('Wallet not connected');
+			return;
+		}
+
+		setIsMarkingUsed(true);
+		setUseError('');
+
+		markReferralUsed(walletAddress, id)
+			.then((usedReferral) => {
+				setReferralStatus(usedReferral.status || 'used');
+			})
+			.catch((error) => {
+				setUseError(error.message || 'Unable to mark this referral as used.');
+			})
+			.finally(() => {
+				setIsMarkingUsed(false);
+			});
+	};
+
+	if (!reservedReferral && !isRevealing && revealError) {
 		return (
 			<div className="dashboard-page">
 				<nav className="dashboard-nav">
@@ -68,14 +153,15 @@ function ReferralDetailsPage({ reservedReferrals }) {
 						<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
 					</div>
 					<div className="wallet-section">
-						<span className="wallet-pill">{wallet}</span>
+						<BackendStatus status={backendStatus} />
+						<span className="wallet-pill">{walletAddress}</span>
 						<button className="button button--ghost" onClick={handleDisconnect}>Disconnect</button>
 					</div>
 				</nav>
 				<main className="dashboard-shell">
 					<section className="details-panel details-panel--empty">
-						<h1 className="dashboard-title">Reserved referral not found</h1>
-						<p className="marketplace-subtitle">Reserve an available referral from the marketplace to reveal details.</p>
+						<h1 className="dashboard-title">Unable to reveal referral</h1>
+						<p className="marketplace-subtitle">{revealError}</p>
 						<button className="button button--primary" onClick={() => navigate('/marketplace')}>Back to Marketplace</button>
 					</section>
 				</main>
@@ -92,7 +178,8 @@ function ReferralDetailsPage({ reservedReferrals }) {
 					<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
 				</div>
 				<div className="wallet-section">
-					<span className="wallet-pill">{wallet}</span>
+					<BackendStatus status={backendStatus} />
+					<span className="wallet-pill">{walletAddress}</span>
 					<button className="button button--ghost" onClick={handleDisconnect}>Disconnect</button>
 				</div>
 			</nav>
@@ -101,7 +188,7 @@ function ReferralDetailsPage({ reservedReferrals }) {
 				<section className="dashboard-topline">
 					<div>
 						<p className="dashboard-kicker">Reserved referral</p>
-						<h1 className="dashboard-title">{referral.label}</h1>
+						<h1 className="dashboard-title">{referral?.label || 'Referral details'}</h1>
 						<p className="marketplace-subtitle">Reservation expires in {timeLeft}</p>
 					</div>
 					<button className="button button--ghost" onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
@@ -111,32 +198,61 @@ function ReferralDetailsPage({ reservedReferrals }) {
 					<div className="details-grid">
 						<div className="details-field">
 							<span>Referral Label</span>
-							<strong>{referral.label}</strong>
+							<strong>{referral?.label || 'Loading...'}</strong>
 						</div>
 						<div className="details-field">
 							<span>Referrer Wallet</span>
-							<strong>{referral.referrer}</strong>
+							<strong>{referral?.referrer || 'Loading...'}</strong>
 						</div>
 						<div className="details-field">
 							<span>Reservation Expiry</span>
-							<strong>{new Date(referral.expiry).toLocaleString()}</strong>
+							<strong>{referral?.expiry ? new Date(referral.expiry).toLocaleString() : 'Loading...'}</strong>
 						</div>
 						<div className="details-field">
 							<span>Validator Pubkey</span>
-							<strong>{referral.validatorPubkey}</strong>
+							<strong>{referral?.validatorPubkey || 'Loading...'}</strong>
+						</div>
+						<div className="details-field">
+							<span>Status</span>
+							<strong>{referralStatus}</strong>
 						</div>
 					</div>
 
 					<div className="secret-box">
 						<div>
 							<span>Secret Code</span>
-							<code>{referral.secret}</code>
+							<code>
+								{isRevealing && 'Revealing secret...'}
+								{!isRevealing && revealError && revealError}
+								{!isRevealing && referralStatus === 'used' && 'Referral has been marked as used.'}
+								{!isRevealing && !revealError && referralStatus !== 'used' && referral?.secret}
+							</code>
 						</div>
 						<div className="secret-actions">
-							<button className="button button--ghost" onClick={handleCopy}>{copied ? 'Copied' : 'Copy'}</button>
-							<button className="button button--primary" onClick={() => downloadReferral(referral)}>Download</button>
+							<button
+								className="button button--ghost"
+								onClick={handleCopy}
+								disabled={!referral?.secret || isRevealing || referralStatus === 'used'}
+							>
+								{copied ? 'Copied' : 'Copy'}
+							</button>
+							<button
+								className="button button--primary"
+								onClick={() => downloadReferral(referral)}
+								disabled={!referral?.secret || isRevealing || referralStatus === 'used'}
+							>
+								Download
+							</button>
+							<button
+								className="button button--primary"
+								onClick={handleMarkUsed}
+								disabled={isMarkingUsed || referralStatus === 'used'}
+							>
+								{referralStatus === 'used' ? 'Used' : isMarkingUsed ? 'Marking' : 'Mark as Used'}
+							</button>
 						</div>
 					</div>
+					{useError && <p className="details-error">{useError}</p>}
 				</section>
 			</main>
 		</div>

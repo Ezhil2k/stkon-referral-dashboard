@@ -1,8 +1,11 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import BackendStatus from '../components/common/BackendStatus.jsx';
 import GenerateReferralModal from '../components/dashboard/GenerateReferralModal.jsx';
+import { generateReferrals } from '../services/referralService.js';
+import { downloadReferral } from '../utilities/downloadReferral.js';
 import '../styles/dashboard.css';
 
 const initialReferrals = [
@@ -32,13 +35,19 @@ function Badge({ status }) {
 	);
 }
 
-function DashboardPage({ reservedReferrals = [] }) {
-	const { wallet, disconnectWallet } = useWallet();
+function DashboardPage({ reservedReferrals = [], backendStatus = 'loading' }) {
+	const { walletAddress, disconnectWallet } = useWallet();
 	const navigate = useNavigate();
 	const [referrals, setReferrals] = useState(initialReferrals);
 	const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+	const [isGenerating, setIsGenerating] = useState(false);
+	const [generateError, setGenerateError] = useState('');
+	const [generatedReferrals, setGeneratedReferrals] = useState([]);
 
-	// Stats
+	useEffect(() => {
+		console.log('CONNECTED WALLET:', walletAddress);
+	}, [walletAddress]);
+
 	const stats = useMemo(() => {
 		const total = referrals.length;
 		const available = referrals.filter(r => r.status === 'available').length;
@@ -53,43 +62,41 @@ function DashboardPage({ reservedReferrals = [] }) {
 		navigate('/');
 	};
 
-	const createMockSecret = (index) => {
-		const seed = `${Date.now()}${index}${Math.random()}`.replace(/\D/g, '');
-		return `0x${seed.padEnd(64, '0').slice(0, 64)}`;
-	};
-
-	const getNextReferralNumber = () => {
-		return referrals.reduce((highest, referral) => {
-			const match = referral.label.match(/STKON-(\d+)/);
-			return match ? Math.max(highest, Number(match[1])) : highest;
-		}, 0) + 1;
-	};
-
 	const handleGenerateReferrals = (count) => {
-		const startNumber = getNextReferralNumber();
-		const createdAt = new Date().toISOString().slice(0, 10);
-		const generatedReferrals = Array.from({ length: count }, (_, index) => {
-			const nextNumber = startNumber + index;
+		const safeCount = Math.min(20, Math.max(1, Number(count) || 1));
 
-			return {
-				id: Date.now() + index,
-				label: `STKON-${String(nextNumber).padStart(3, '0')}`,
-				status: 'available',
-				createdAt,
-				secret: createMockSecret(index),
-				referrer: wallet || '0x000...000',
-				reservedWallet: null,
-			};
-		});
+		console.log('CONNECTED WALLET:', walletAddress);
 
-		setReferrals((currentReferrals) => [...currentReferrals, ...generatedReferrals]);
-		setIsGenerateModalOpen(false);
+		if (!walletAddress) {
+			setGenerateError('Wallet not connected');
+			return;
+		}
+
+		setIsGenerating(true);
+		setGenerateError('');
+
+		generateReferrals(walletAddress, safeCount)
+			.then((newReferrals) => {
+				setReferrals((currentReferrals) => [...currentReferrals, ...newReferrals]);
+				setGeneratedReferrals(newReferrals);
+				setIsGenerateModalOpen(false);
+			})
+			.catch((error) => {
+				setGenerateError(error.message || 'Unable to generate referrals.');
+			})
+			.finally(() => {
+				setIsGenerating(false);
+			});
+	};
+
+	const handleCopyGeneratedSecret = async (secret) => {
+		await navigator.clipboard.writeText(secret);
 	};
 
 	// Redirect if not connected
 	React.useEffect(() => {
-		if (!wallet) navigate('/');
-	}, [wallet, navigate]);
+		if (!walletAddress) navigate('/');
+	}, [walletAddress, navigate]);
 
 	return (
 		<div className="dashboard-page">
@@ -100,7 +107,8 @@ function DashboardPage({ reservedReferrals = [] }) {
 					<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
 				</div>
 				<div className="wallet-section">
-					<span className="wallet-pill">{wallet}</span>
+					<BackendStatus status={backendStatus} />
+					<span className="wallet-pill">{walletAddress}</span>
 					<button className="button button--ghost" onClick={handleDisconnect}>Disconnect</button>
 				</div>
 			</nav>
@@ -122,6 +130,38 @@ function DashboardPage({ reservedReferrals = [] }) {
 					<StatCard label="Reserved" value={stats.reserved} />
 					<StatCard label="Used" value={stats.used} />
 				</section>
+
+				{generatedReferrals.length > 0 && (
+					<section className="generated-panel">
+						<div className="referral-panel__header">
+							<div>
+								<p className="dashboard-kicker">One-time secrets</p>
+								<h2 className="referral-panel__title">Generated Referrals</h2>
+							</div>
+							<span className="referral-count">{generatedReferrals.length} new</span>
+						</div>
+
+						<div className="generated-list">
+							{generatedReferrals.map((referral) => (
+								<div className="generated-row" key={referral.id}>
+									<div>
+										<strong>{referral.label}</strong>
+										<span>{referral.status}</span>
+									</div>
+									<code>{referral.secret}</code>
+									<div className="generated-actions">
+										<button className="button button--ghost" onClick={() => handleCopyGeneratedSecret(referral.secret)}>
+											Copy
+										</button>
+										<button className="button button--primary" onClick={() => downloadReferral(referral)}>
+											Download
+										</button>
+									</div>
+								</div>
+							))}
+						</div>
+					</section>
+				)}
 
 				<section className="reserved-panel">
 					<div className="referral-panel__header">
@@ -184,6 +224,8 @@ function DashboardPage({ reservedReferrals = [] }) {
 
 			<GenerateReferralModal
 				isOpen={isGenerateModalOpen}
+				isGenerating={isGenerating}
+				error={generateError}
 				onClose={() => setIsGenerateModalOpen(false)}
 				onGenerate={handleGenerateReferrals}
 			/>

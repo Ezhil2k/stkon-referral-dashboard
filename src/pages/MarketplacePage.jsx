@@ -1,27 +1,81 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import BackendStatus from '../components/common/BackendStatus.jsx';
 import MarketplaceCard from '../components/marketplace/MarketplaceCard.jsx';
 import MarketplaceFilters from '../components/marketplace/MarketplaceFilters.jsx';
+import { fetchMarketplaceReferrals, reserveReferral } from '../services/referralService.js';
 import '../styles/dashboard.css';
 import '../styles/marketplace.css';
 
-function MarketplacePage({ marketplaceItems, onReserveReferral }) {
-	const { wallet, disconnectWallet } = useWallet();
+const reserveErrorMessages = {
+	'Referral not available': 'That referral is no longer available. The list will refresh shortly.',
+	'Maximum 2 active reservations allowed': 'You already have the maximum 2 active reservations.',
+	'Invalid wallet address': 'Your connected wallet address was rejected by the server.',
+};
+
+function MarketplacePage({ onReserveReferral, backendStatus = 'loading' }) {
+	const { walletAddress, disconnectWallet } = useWallet();
 	const navigate = useNavigate();
+	const [marketplaceItems, setMarketplaceItems] = useState([]);
+	const [locallyReservedIds, setLocallyReservedIds] = useState([]);
 	const [search, setSearch] = useState('');
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState('');
+	const [reserveError, setReserveError] = useState('');
+	const [reservingId, setReservingId] = useState(null);
 
 	useEffect(() => {
-		if (!wallet) navigate('/');
-	}, [wallet, navigate]);
+		console.log('CONNECTED WALLET:', walletAddress);
+		if (!walletAddress) navigate('/');
+	}, [walletAddress, navigate]);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		const loadMarketplace = async ({ silent = false } = {}) => {
+			if (!silent) {
+				setIsLoading(true);
+			}
+
+			try {
+				const referrals = await fetchMarketplaceReferrals();
+
+				if (!isMounted) return;
+
+				setMarketplaceItems(referrals);
+				setError('');
+			} catch (requestError) {
+				if (!isMounted) return;
+
+				setError(requestError.message || 'Unable to load marketplace referrals.');
+			} finally {
+				if (isMounted) {
+					setIsLoading(false);
+				}
+			}
+		};
+
+		loadMarketplace();
+		const intervalId = window.setInterval(() => {
+			loadMarketplace({ silent: true });
+		}, 30000);
+
+		return () => {
+			isMounted = false;
+			window.clearInterval(intervalId);
+		};
+	}, []);
 
 	const filteredItems = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
 
 		return marketplaceItems.filter((item) =>
+			item.status === 'available' &&
+			!locallyReservedIds.includes(item.id) &&
 			item.label.toLowerCase().includes(normalizedSearch)
 		);
-	}, [marketplaceItems, search]);
+	}, [marketplaceItems, locallyReservedIds, search]);
 
 	const handleDisconnect = () => {
 		disconnectWallet();
@@ -29,11 +83,42 @@ function MarketplacePage({ marketplaceItems, onReserveReferral }) {
 	};
 
 	const handleReserve = (id) => {
-		const reservedReferral = onReserveReferral(id);
-
-		if (reservedReferral) {
-			navigate(`/marketplace/${reservedReferral.id}`);
+		if (reservingId) {
+			return;
 		}
+
+		console.log('CONNECTED WALLET:', walletAddress);
+
+		if (!walletAddress) {
+			setReserveError('Wallet not connected');
+			return;
+		}
+
+		setReservingId(id);
+		setReserveError('');
+
+		const referral = marketplaceItems.find((item) => item.id === id);
+
+		reserveReferral(walletAddress, id)
+			.then((reservation) => {
+				const reservedReferral = onReserveReferral({
+					...referral,
+					...reservation,
+					referrer: referral?.referrer,
+				});
+
+				if (reservedReferral) {
+					setLocallyReservedIds((ids) => [...ids, id]);
+					navigate(`/marketplace/${reservedReferral.id}`);
+				}
+			})
+			.catch((requestError) => {
+				const message = requestError.message || 'Unable to reserve this referral.';
+				setReserveError(reserveErrorMessages[message] || message);
+			})
+			.finally(() => {
+				setReservingId(null);
+			});
 	};
 
 	return (
@@ -45,7 +130,8 @@ function MarketplacePage({ marketplaceItems, onReserveReferral }) {
 					<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
 				</div>
 				<div className="wallet-section">
-					<span className="wallet-pill">{wallet}</span>
+					<BackendStatus status={backendStatus} />
+					<span className="wallet-pill">{walletAddress}</span>
 					<button className="button button--ghost" onClick={handleDisconnect}>Disconnect</button>
 				</div>
 			</nav>
@@ -69,8 +155,20 @@ function MarketplacePage({ marketplaceItems, onReserveReferral }) {
 						<span>Action</span>
 					</div>
 					<div className="marketplace-list">
-						{filteredItems.map((item) => (
-							<MarketplaceCard key={item.id} item={item} onReserve={handleReserve} />
+						{isLoading && <p className="marketplace-state">Loading marketplace referrals...</p>}
+						{!isLoading && error && <p className="marketplace-state marketplace-state--error">{error}</p>}
+						{reserveError && <p className="marketplace-state marketplace-state--error">{reserveError}</p>}
+						{!isLoading && !error && filteredItems.length === 0 && (
+							<p className="marketplace-state">No available referrals found.</p>
+						)}
+						{!isLoading && !error && filteredItems.map((item) => (
+							<MarketplaceCard
+								key={item.id}
+								item={item}
+								isReserving={reservingId === item.id}
+								isDisabled={Boolean(reservingId)}
+								onReserve={handleReserve}
+							/>
 						))}
 					</div>
 				</section>

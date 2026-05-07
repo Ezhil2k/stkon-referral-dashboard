@@ -3,7 +3,9 @@ export function downloadReferral(referral) {
 		`Referral label: ${referral.label}`,
 		`Secret: ${referral.secret}`,
 		`Referrer: ${referral.referrer}`,
-		`Expiry date: ${new Date(referral.expiry).toLocaleString()}`,
+		referral.reservedAt
+			? `Reserved timestamp: ${new Date(referral.reservedAt).toLocaleString()}`
+			: `Status: ${referral.status}`,
 	];
 	const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
 	const url = URL.createObjectURL(blob);

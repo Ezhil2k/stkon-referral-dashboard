@@ -76,6 +76,23 @@
 	gap: 8px;
 }
 
+.marketplace-state {
+	margin: 0;
+	padding: 14px;
+	color: #9aa79f;
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-radius: 8px;
+	font-size: 13px;
+	text-align: center;
+}
+
+.marketplace-state--error {
+	color: #f2a6a0;
+	border-color: rgba(239, 91, 80, 0.24);
+	background: rgba(239, 91, 80, 0.08);
+}
+
 .marketplace-card {
 	min-height: 58px;
 	padding: 10px 12px;

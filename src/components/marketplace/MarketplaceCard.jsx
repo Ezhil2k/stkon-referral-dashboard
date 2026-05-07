@@ -1,4 +1,4 @@
-function MarketplaceCard({ item, onReserve }) {
+function MarketplaceCard({ item, isReserving = false, isDisabled = false, onReserve }) {
 	return (
 		<article className="marketplace-card">
 			<div className="marketplace-card__identity">
@@ -10,8 +10,9 @@ function MarketplaceCard({ item, onReserve }) {
 				className="button marketplace-reserve"
 				type="button"
 				onClick={() => onReserve(item.id)}
+				disabled={isDisabled}
 			>
-				Reserve
+				{isReserving ? 'Reserving' : 'Reserve'}
 			</button>
 		</article>
 	);

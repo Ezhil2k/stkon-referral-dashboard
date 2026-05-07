@@ -4,14 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 
 const ConnectPage = () => {
-	const { wallet, connectWallet, connecting } = useWallet();
+	const { walletAddress, connectWallet, connecting } = useWallet();
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		if (wallet) {
+		if (walletAddress) {
 			navigate('/dashboard');
 		}
-	}, [wallet, navigate]);
+	}, [walletAddress, navigate]);
 
 	return (
 		<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#181c20' }}>

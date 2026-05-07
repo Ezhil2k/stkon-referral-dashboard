@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const WalletContext = createContext();
 
@@ -8,8 +8,27 @@ export function useWallet() {
 }
 
 export function WalletProvider({ children }) {
-	const [wallet, setWallet] = useState(null);
+	const [walletAddress, setWalletAddress] = useState(null);
 	const [connecting, setConnecting] = useState(false);
+	const isConnected = Boolean(walletAddress);
+
+	useEffect(() => {
+		if (!window.ethereum) {
+			return;
+		}
+
+		window.ethereum
+			.request({ method: 'eth_accounts' })
+			.then((accounts) => {
+				if (accounts?.[0]) {
+					setWalletAddress(accounts[0]);
+					console.log('CONNECTED WALLET:', accounts[0]);
+				}
+			})
+			.catch(() => {
+				setWalletAddress(null);
+			});
+	}, []);
 
 	const connectWallet = async () => {
 		if (!window.ethereum) {
@@ -19,19 +38,29 @@ export function WalletProvider({ children }) {
 		setConnecting(true);
 		try {
 			const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-			setWallet(accounts[0]);
+			setWalletAddress(accounts[0]);
+			console.log('CONNECTED WALLET:', accounts[0]);
 		} catch (err) {
-			setWallet(null);
+			setWalletAddress(null);
 		}
 		setConnecting(false);
 	};
 
 	const disconnectWallet = () => {
-		setWallet(null);
+		setWalletAddress(null);
 	};
 
 	return (
-		<WalletContext.Provider value={{ wallet, connectWallet, disconnectWallet, connecting }}>
+		<WalletContext.Provider
+			value={{
+				walletAddress,
+				wallet: walletAddress,
+				isConnected,
+				connectWallet,
+				disconnectWallet,
+				connecting,
+			}}
+		>
 			{children}
 		</WalletContext.Provider>
 	);

@@ -89,6 +89,16 @@
 	flex-shrink: 0;
 }
 
+.details-error {
+	margin: 12px 0 0;
+	padding: 10px 12px;
+	color: #f2a6a0;
+	background: rgba(239, 91, 80, 0.08);
+	border: 1px solid rgba(239, 91, 80, 0.24);
+	border-radius: 8px;
+	font-size: 13px;
+}
+
 @media (max-width: 720px) {
 	.details-grid {
 		grid-template-columns: 1fr;
