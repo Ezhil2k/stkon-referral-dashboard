@@ -4,15 +4,9 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
 import GenerateReferralModal from '../components/dashboard/GenerateReferralModal.jsx';
-import { generateReferrals } from '../services/referralService.js';
+import { fetchMyReferrals, generateReferrals } from '../services/referralService.js';
 import { downloadReferral } from '../utilities/downloadReferral.js';
 import '../styles/dashboard.css';
-
-const initialReferrals = [
-	{ id: 1, label: 'STKON-001', status: 'available', createdAt: '2026-05-01', secret: '0x47b81d9f2a64c013a91f7b82d53e09ad', referrer: '0x8a2...91f', reservedWallet: null },
-	{ id: 2, label: 'STKON-002', status: 'reserved', createdAt: '2026-05-02', secret: '0x63f0c1a9ee2148b2a709e4f8d19b33c5', referrer: '0x2bc...71a', reservedWallet: '0x1234...abcd' },
-	{ id: 3, label: 'STKON-003', status: 'used', createdAt: '2026-05-03', secret: '0x91aa7e1bd5804cc882d6a113ef70b681', referrer: '0x7df...442', reservedWallet: '0xabcd...1234' },
-];
 
 const statusColors = {
 	available: '#2ecc40',
@@ -35,10 +29,12 @@ function Badge({ status }) {
 	);
 }
 
-function DashboardPage({ reservedReferrals = [], backendStatus = 'loading' }) {
+function DashboardPage({ backendStatus = 'loading' }) {
 	const { walletAddress, disconnectWallet } = useWallet();
 	const navigate = useNavigate();
-	const [referrals, setReferrals] = useState(initialReferrals);
+	const [referrals, setReferrals] = useState([]);
+	const [isReferralsLoading, setIsReferralsLoading] = useState(true);
+	const [referralsError, setReferralsError] = useState('');
 	const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generateError, setGenerateError] = useState('');
@@ -46,6 +42,37 @@ function DashboardPage({ reservedReferrals = [], backendStatus = 'loading' }) {
 
 	useEffect(() => {
 		console.log('CONNECTED WALLET:', walletAddress);
+	}, [walletAddress]);
+
+	useEffect(() => {
+		if (!walletAddress) {
+			setReferrals([]);
+			return;
+		}
+
+		let isMounted = true;
+
+		setIsReferralsLoading(true);
+		setReferralsError('');
+
+		fetchMyReferrals(walletAddress)
+			.then((myReferrals) => {
+				if (!isMounted) return;
+				setReferrals(myReferrals);
+			})
+			.catch((error) => {
+				if (!isMounted) return;
+				setReferralsError(error.message || 'Unable to load your referrals.');
+			})
+			.finally(() => {
+				if (isMounted) {
+					setIsReferralsLoading(false);
+				}
+			});
+
+		return () => {
+			isMounted = false;
+		};
 	}, [walletAddress]);
 
 	const stats = useMemo(() => {
@@ -163,36 +190,6 @@ function DashboardPage({ reservedReferrals = [], backendStatus = 'loading' }) {
 					</section>
 				)}
 
-				<section className="reserved-panel">
-					<div className="referral-panel__header">
-						<div>
-							<p className="dashboard-kicker">Private reservations</p>
-							<h2 className="referral-panel__title">My Reserved Referrals</h2>
-						</div>
-						<span className="referral-count">{reservedReferrals.length} active</span>
-					</div>
-
-					{reservedReferrals.length ? (
-						<div className="reserved-list">
-							{reservedReferrals.map((referral) => (
-								<div className="reserved-row" key={referral.id}>
-									<strong>{referral.label}</strong>
-									<span>{new Date(referral.reservedAt).toLocaleDateString()}</span>
-									<span>{new Date(referral.expiry).toLocaleDateString()}</span>
-									<button
-										className="button button--ghost reserved-open"
-										onClick={() => navigate(`/marketplace/${referral.id}`)}
-									>
-										Open
-									</button>
-								</div>
-							))}
-						</div>
-					) : (
-						<p className="reserved-empty">Reserved referrals will appear here after you claim a marketplace slot.</p>
-					)}
-				</section>
-
 				<section className="referral-panel">
 					<div className="referral-panel__header">
 						<div>
@@ -203,7 +200,12 @@ function DashboardPage({ reservedReferrals = [], backendStatus = 'loading' }) {
 					</div>
 
 					<div className="referral-list">
-						{referrals.map((r) => (
+						{isReferralsLoading && <p className="reserved-empty">Loading your referrals...</p>}
+						{!isReferralsLoading && referralsError && <p className="reserved-empty">{referralsError}</p>}
+						{!isReferralsLoading && !referralsError && referrals.length === 0 && (
+							<p className="reserved-empty">No referrals generated yet.</p>
+						)}
+						{!isReferralsLoading && !referralsError && referrals.map((r) => (
 							<article className="referral-card" key={r.label}>
 								<div className="referral-card__main">
 									<div>

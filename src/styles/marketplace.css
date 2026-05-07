@@ -12,6 +12,44 @@
 	font-size: 14px;
 }
 
+.marketplace-toggle {
+	display: inline-flex;
+	gap: 6px;
+	margin-bottom: 12px;
+	padding: 4px;
+	background: rgba(255, 255, 255, 0.045);
+	border: 1px solid rgba(255, 255, 255, 0.075);
+	border-radius: 8px;
+}
+
+.marketplace-toggle__button {
+	padding: 8px 13px;
+	color: #9aa79f;
+	background: transparent;
+	border: 0;
+	border-radius: 6px;
+	font-size: 13px;
+	font-weight: 800;
+	cursor: pointer;
+	transition:
+		background 0.18s ease,
+		color 0.18s ease,
+		box-shadow 0.18s ease;
+}
+
+.marketplace-toggle__button:hover,
+.marketplace-toggle__button.is-active {
+	color: #ffffff;
+	background: rgba(45, 125, 70, 0.2);
+	box-shadow: 0 0 18px rgba(45, 125, 70, 0.14);
+}
+
+.marketplace-filter-row {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 12px;
+}
+
 .marketplace-filters {
 	display: flex;
 	align-items: center;
@@ -91,6 +129,73 @@
 	color: #f2a6a0;
 	border-color: rgba(239, 91, 80, 0.24);
 	background: rgba(239, 91, 80, 0.08);
+}
+
+.reservation-panel__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	margin-bottom: 12px;
+	text-align: left;
+}
+
+.reservation-list {
+	display: grid;
+	gap: 8px;
+}
+
+.reservation-row {
+	display: grid;
+	grid-template-columns: minmax(150px, 1fr) 150px 170px auto;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-radius: 8px;
+	transition:
+		transform 0.18s ease,
+		background 0.18s ease,
+		border-color 0.18s ease,
+		box-shadow 0.18s ease;
+}
+
+.reservation-row:hover {
+	transform: translateY(-1px);
+	background: rgba(255, 255, 255, 0.058);
+	border-color: rgba(121, 209, 144, 0.26);
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2), 0 0 20px rgba(45, 125, 70, 0.1);
+}
+
+.reservation-row strong {
+	color: #ffffff;
+	font-size: 13px;
+}
+
+.reservation-identity {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.reservation-row span {
+	color: #9aa79f;
+	font-size: 12px;
+}
+
+.reservation-row small {
+	display: block;
+	margin-top: 3px;
+	color: #9ff0b2;
+	font-size: 11px;
+	font-weight: 800;
+}
+
+.reservation-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
 }
 
 .marketplace-card {
@@ -180,6 +285,10 @@
 		width: 100%;
 	}
 
+	.marketplace-filter-row {
+		justify-content: stretch;
+	}
+
 	.marketplace-search {
 		width: 100%;
 	}
@@ -191,6 +300,18 @@
 	.marketplace-card {
 		grid-template-columns: 1fr auto;
 		gap: 10px;
+	}
+
+	.reservation-row {
+		grid-template-columns: 1fr;
+	}
+
+	.reservation-actions {
+		justify-content: stretch;
+	}
+
+	.reservation-actions .button {
+		flex: 1;
 	}
 
 	.marketplace-card__date {
