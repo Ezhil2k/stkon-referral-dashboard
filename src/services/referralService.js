@@ -137,6 +137,29 @@ export async function fetchMyReservations(walletAddress) {
 	}
 }
 
+export async function checkSupernodeStatus(walletAddress) {
+	const apiName = 'checkSupernodeStatus';
+	const url = `${BASE_URL}/supernode/${encodeURIComponent(walletAddress)}`;
+
+	console.log('CHECKING SUPERNODE STATUS', walletAddress);
+	logApiRequest(apiName, 'GET', url, { walletAddress });
+
+	try {
+		const response = await apiRequest(`/supernode/${encodeURIComponent(walletAddress)}`);
+		console.log('SUPERNODE RESPONSE', response?.data ?? response);
+		logApiResponse(apiName, response);
+
+		if (!response?.success) {
+			throw new Error(response?.message || 'Unable to verify account type.');
+		}
+
+		return Boolean(response.isSupernode);
+	} catch (error) {
+		logApiError(apiName, error);
+		throw error;
+	}
+}
+
 export async function reserveReferral(walletAddress, referralId) {
 	const apiName = 'reserveReferral';
 	const url = `${BASE_URL}/reserve`;

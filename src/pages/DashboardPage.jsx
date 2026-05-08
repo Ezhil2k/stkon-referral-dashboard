@@ -30,7 +30,7 @@ function Badge({ status }) {
 }
 
 function DashboardPage({ backendStatus = 'loading' }) {
-	const { walletAddress, disconnectWallet } = useWallet();
+	const { walletAddress, isSupernode, roleChecking, roleError, disconnectWallet } = useWallet();
 	const navigate = useNavigate();
 	const [referrals, setReferrals] = useState([]);
 	const [isReferralsLoading, setIsReferralsLoading] = useState(true);
@@ -45,8 +45,9 @@ function DashboardPage({ backendStatus = 'loading' }) {
 	}, [walletAddress]);
 
 	useEffect(() => {
-		if (!walletAddress) {
+		if (!walletAddress || isSupernode !== true) {
 			setReferrals([]);
+			setIsReferralsLoading(false);
 			return;
 		}
 
@@ -73,7 +74,7 @@ function DashboardPage({ backendStatus = 'loading' }) {
 		return () => {
 			isMounted = false;
 		};
-	}, [walletAddress]);
+	}, [walletAddress, isSupernode]);
 
 	const stats = useMemo(() => {
 		const total = referrals.length;
@@ -122,8 +123,24 @@ function DashboardPage({ backendStatus = 'loading' }) {
 
 	// Redirect if not connected
 	React.useEffect(() => {
-		if (!walletAddress) navigate('/');
-	}, [walletAddress, navigate]);
+		if (!walletAddress) {
+			navigate('/');
+			return;
+		}
+
+		if (roleChecking) {
+			return;
+		}
+
+		if (roleError) {
+			navigate('/');
+			return;
+		}
+
+		if (isSupernode === false) {
+			navigate('/marketplace');
+		}
+	}, [walletAddress, isSupernode, roleChecking, roleError, navigate]);
 
 	return (
 		<div className="dashboard-page">
