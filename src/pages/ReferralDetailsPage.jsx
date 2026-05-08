@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
 import { markReferralUsed, revealReferralSecret } from '../services/referralService.js';
@@ -148,10 +148,6 @@ function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
 			<div className="dashboard-page">
 				<nav className="dashboard-nav">
 					<div className="dashboard-brand">STKON</div>
-					<div className="dashboard-tabs">
-						<NavLink className="dashboard-tab" to="/dashboard">Dashboard</NavLink>
-						<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
-					</div>
 					<div className="wallet-section">
 						<BackendStatus status={backendStatus} />
 						<span className="wallet-pill">{walletAddress}</span>
@@ -173,10 +169,6 @@ function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
 		<div className="dashboard-page">
 			<nav className="dashboard-nav">
 				<div className="dashboard-brand">STKON</div>
-				<div className="dashboard-tabs">
-					<NavLink className="dashboard-tab" to="/dashboard">Dashboard</NavLink>
-					<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
-				</div>
 				<div className="wallet-section">
 					<BackendStatus status={backendStatus} />
 					<span className="wallet-pill">{walletAddress}</span>

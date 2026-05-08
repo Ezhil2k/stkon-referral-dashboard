@@ -1,11 +1,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
 import GenerateReferralModal from '../components/dashboard/GenerateReferralModal.jsx';
 import { fetchMyReferrals, generateReferrals } from '../services/referralService.js';
-import { downloadReferral } from '../utilities/downloadReferral.js';
 import '../styles/dashboard.css';
 
 const statusColors = {
@@ -38,7 +37,7 @@ function DashboardPage({ backendStatus = 'loading' }) {
 	const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [generateError, setGenerateError] = useState('');
-	const [generatedReferrals, setGeneratedReferrals] = useState([]);
+	const [, setGeneratedReferrals] = useState([]);
 
 	useEffect(() => {
 		console.log('CONNECTED WALLET:', walletAddress);
@@ -117,10 +116,6 @@ function DashboardPage({ backendStatus = 'loading' }) {
 			});
 	};
 
-	const handleCopyGeneratedSecret = async (secret) => {
-		await navigator.clipboard.writeText(secret);
-	};
-
 	// Redirect if not connected
 	React.useEffect(() => {
 		if (!walletAddress) {
@@ -146,10 +141,6 @@ function DashboardPage({ backendStatus = 'loading' }) {
 		<div className="dashboard-page">
 			<nav className="dashboard-nav">
 				<div className="dashboard-brand">STKON</div>
-				<div className="dashboard-tabs">
-					<NavLink className="dashboard-tab" to="/dashboard">Dashboard</NavLink>
-					<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
-				</div>
 				<div className="wallet-section">
 					<BackendStatus status={backendStatus} />
 					<span className="wallet-pill">{walletAddress}</span>
@@ -174,38 +165,6 @@ function DashboardPage({ backendStatus = 'loading' }) {
 					<StatCard label="Reserved" value={stats.reserved} />
 					<StatCard label="Used" value={stats.used} />
 				</section>
-
-				{generatedReferrals.length > 0 && (
-					<section className="generated-panel">
-						<div className="referral-panel__header">
-							<div>
-								<p className="dashboard-kicker">One-time secrets</p>
-								<h2 className="referral-panel__title">Generated Referrals</h2>
-							</div>
-							<span className="referral-count">{generatedReferrals.length} new</span>
-						</div>
-
-						<div className="generated-list">
-							{generatedReferrals.map((referral) => (
-								<div className="generated-row" key={referral.id}>
-									<div>
-										<strong>{referral.label}</strong>
-										<span>{referral.status}</span>
-									</div>
-									<code>{referral.secret}</code>
-									<div className="generated-actions">
-										<button className="button button--ghost" onClick={() => handleCopyGeneratedSecret(referral.secret)}>
-											Copy
-										</button>
-										<button className="button button--primary" onClick={() => downloadReferral(referral)}>
-											Download
-										</button>
-									</div>
-								</div>
-							))}
-						</div>
-					</section>
-				)}
 
 				<section className="referral-panel">
 					<div className="referral-panel__header">

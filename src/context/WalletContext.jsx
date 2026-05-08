@@ -13,16 +13,19 @@ export function WalletProvider({ children }) {
 	const [isSupernode, setIsSupernode] = useState(null);
 	const [roleChecking, setRoleChecking] = useState(false);
 	const [roleError, setRoleError] = useState('');
+	const [walletInitializing, setWalletInitializing] = useState(true);
 	const [connecting, setConnecting] = useState(false);
 	const isConnected = Boolean(walletAddress);
 
 	const loadRole = useCallback(async (address) => {
+		console.log('ROLE CHECK START');
 		setRoleChecking(true);
 		setRoleError('');
 
 		try {
 			const supernodeStatus = await checkSupernodeStatus(address);
 			setIsSupernode(supernodeStatus);
+			console.log('ROLE RESOLVED', supernodeStatus);
 			return supernodeStatus;
 		} catch (error) {
 			setIsSupernode(null);
@@ -35,6 +38,7 @@ export function WalletProvider({ children }) {
 
 	useEffect(() => {
 		if (!window.ethereum) {
+			setWalletInitializing(false);
 			return;
 		}
 
@@ -57,12 +61,17 @@ export function WalletProvider({ children }) {
 				if (accounts?.[0]) {
 					setWalletAddress(accounts[0]);
 					console.log('CONNECTED WALLET:', accounts[0]);
-					loadRole(accounts[0]);
+					return loadRole(accounts[0]);
 				}
+
+				return null;
 			})
 			.catch(() => {
 				setWalletAddress(null);
 				setIsSupernode(null);
+			})
+			.finally(() => {
+				setWalletInitializing(false);
 			});
 
 		window.ethereum.on?.('accountsChanged', handleAccountsChanged);
@@ -105,6 +114,7 @@ export function WalletProvider({ children }) {
 				wallet: walletAddress,
 				isConnected,
 				isSupernode,
+				walletInitializing,
 				roleChecking,
 				roleError,
 				connectWallet,

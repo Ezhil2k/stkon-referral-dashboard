@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
 import MarketplaceCard from '../components/marketplace/MarketplaceCard.jsx';
@@ -190,10 +190,6 @@ function MarketplacePage({ onReserveReferral, backendStatus = 'loading' }) {
 		<div className="dashboard-page">
 			<nav className="dashboard-nav">
 				<div className="dashboard-brand">STKON</div>
-				<div className="dashboard-tabs">
-					<NavLink className="dashboard-tab" to="/dashboard">Dashboard</NavLink>
-					<NavLink className="dashboard-tab" to="/marketplace">Referral Marketplace</NavLink>
-				</div>
 				<div className="wallet-section">
 					<BackendStatus status={backendStatus} />
 					<span className="wallet-pill">{walletAddress}</span>
