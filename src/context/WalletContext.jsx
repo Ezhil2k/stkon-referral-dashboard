@@ -19,6 +19,7 @@ export function WalletProvider({ children }) {
 
 	const loadRole = useCallback(async (address) => {
 		console.log('ROLE CHECK START');
+		console.log('CHECKING ACCOUNT TYPE...');
 		setRoleChecking(true);
 		setRoleError('');
 
@@ -28,6 +29,7 @@ export function WalletProvider({ children }) {
 			console.log('ROLE RESOLVED', supernodeStatus);
 			return supernodeStatus;
 		} catch (error) {
+			console.error('SUPERNODE STATUS CHECK FAILED', error.response?.data || error);
 			setIsSupernode(null);
 			setRoleError(error.message || 'Unable to verify account type.');
 			return null;
@@ -46,6 +48,7 @@ export function WalletProvider({ children }) {
 			if (accounts?.[0]) {
 				setWalletAddress(accounts[0]);
 				console.log('CONNECTED WALLET:', accounts[0]);
+				console.log('CONNECTED WALLET ADDRESS', accounts[0]);
 				loadRole(accounts[0]);
 				return;
 			}
@@ -61,6 +64,7 @@ export function WalletProvider({ children }) {
 				if (accounts?.[0]) {
 					setWalletAddress(accounts[0]);
 					console.log('CONNECTED WALLET:', accounts[0]);
+					console.log('CONNECTED WALLET ADDRESS', accounts[0]);
 					return loadRole(accounts[0]);
 				}
 
@@ -91,6 +95,7 @@ export function WalletProvider({ children }) {
 			const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
 			setWalletAddress(accounts[0]);
 			console.log('CONNECTED WALLET:', accounts[0]);
+			console.log('CONNECTED WALLET ADDRESS', accounts[0]);
 			await loadRole(accounts[0]);
 		} catch (err) {
 			setWalletAddress(null);

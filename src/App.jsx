@@ -34,6 +34,7 @@ function ProtectedSupernodeRoute({ children }) {
   }
 
   if (isSupernode !== true) {
+    console.log('ROUTING TO MARKETPLACE');
     return <Navigate to="/marketplace" replace />;
   }
 
@@ -55,6 +56,7 @@ function ProtectedMarketplaceRoute({ children }) {
   }
 
   if (isSupernode === true) {
+    console.log('ROUTING TO DASHBOARD');
     return <Navigate to="/dashboard" replace />;
   }
 

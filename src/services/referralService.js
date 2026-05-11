@@ -141,12 +141,12 @@ export async function checkSupernodeStatus(walletAddress) {
 	const apiName = 'checkSupernodeStatus';
 	const url = `${BASE_URL}/supernode/${encodeURIComponent(walletAddress)}`;
 
-	console.log('CHECKING SUPERNODE STATUS', walletAddress);
+	console.log('CHECKING SUPERNODE STATUS FOR', walletAddress);
 	logApiRequest(apiName, 'GET', url, { walletAddress });
 
 	try {
 		const response = await apiRequest(`/supernode/${encodeURIComponent(walletAddress)}`);
-		console.log('SUPERNODE RESPONSE', response?.data ?? response);
+		console.log('SUPERNODE STATUS RESPONSE', response?.data);
 		logApiResponse(apiName, response);
 
 		if (!response?.success) {
@@ -155,6 +155,7 @@ export async function checkSupernodeStatus(walletAddress) {
 
 		return Boolean(response.isSupernode);
 	} catch (error) {
+		console.error('SUPERNODE STATUS CHECK FAILED', error.response?.data || error);
 		logApiError(apiName, error);
 		throw error;
 	}

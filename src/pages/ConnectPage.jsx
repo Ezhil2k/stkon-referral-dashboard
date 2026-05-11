@@ -13,8 +13,10 @@ const ConnectPage = () => {
 		}
 
 		if (isSupernode) {
+			console.log('ROUTING TO DASHBOARD');
 			navigate('/dashboard');
 		} else {
+			console.log('ROUTING TO MARKETPLACE');
 			navigate('/marketplace');
 		}
 	}, [walletAddress, isSupernode, walletInitializing, roleChecking, roleError, navigate]);
