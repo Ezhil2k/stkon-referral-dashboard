@@ -103,7 +103,6 @@ function App() {
       ...referral,
       reservedAt: referral.reservedAt || new Date().toISOString(),
       expiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      validatorPubkey: '0xb7f9c2a641e981f3d4c290b9a27e5f44c61702d8a13c9e5d6b21c442ab81f930',
     };
 
     setReservedReferrals((items) => [

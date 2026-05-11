@@ -90,7 +90,6 @@ function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
 					...reservedReferral,
 					...secretReferral,
 					expiry: reservedReferral?.expiry || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-					validatorPubkey: reservedReferral?.validatorPubkey || '0xb7f9c2a641e981f3d4c290b9a27e5f44c61702d8a13c9e5d6b21c442ab81f930',
 				});
 			})
 			.catch((error) => {
@@ -229,10 +228,6 @@ function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
 						<div className="details-field">
 							<span>Reservation Expiry</span>
 							<strong>{referral?.expiry ? new Date(referral.expiry).toLocaleString() : 'Loading...'}</strong>
-						</div>
-						<div className="details-field">
-							<span>Validator Pubkey</span>
-							<strong>{referral?.validatorPubkey || 'Loading...'}</strong>
 						</div>
 						<div className="details-field">
 							<span>Status</span>
