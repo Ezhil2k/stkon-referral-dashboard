@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
-import { markReferralUsed, revealReferralSecret } from '../services/referralService.js';
+import { fetchOnchainStatus, markReferralUsed, revealReferralSecret } from '../services/referralService.js';
 import { downloadReferral } from '../utilities/downloadReferral.js';
 import '../styles/dashboard.css';
 import '../styles/marketplace.css';
@@ -42,6 +42,28 @@ function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
 	useEffect(() => {
 		setReferralStatus(reservedReferral?.status || 'reserved');
 	}, [reservedReferral]);
+
+	useEffect(() => {
+		if (!id) {
+			return undefined;
+		}
+
+		let isMounted = true;
+
+		fetchOnchainStatus(id)
+			.then((onchainStatus) => {
+				if (!isMounted || !onchainStatus?.status) return;
+				setReferralStatus(onchainStatus.status);
+			})
+			.catch(() => {
+				if (!isMounted) return;
+				setReferralStatus(reservedReferral?.status || 'reserved');
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [id, reservedReferral]);
 
 	useEffect(() => {
 		if (!walletAddress || !id) {
@@ -132,8 +154,16 @@ function ReferralDetailsPage({ reservedReferrals, backendStatus = 'loading' }) {
 		setUseError('');
 
 		markReferralUsed(walletAddress, id)
-			.then((usedReferral) => {
-				setReferralStatus(usedReferral.status || 'used');
+			.then(() => {
+				console.log('REMOVED LOCAL USED STATUS MUTATION AFTER MARK USED');
+				console.log('REFETCHING STATUS AFTER MARK USED', id);
+				return fetchOnchainStatus(id);
+			})
+			.then((statusData) => {
+				console.log('FINAL STATUS RESPONSE', statusData);
+				if (statusData?.status) {
+					setReferralStatus(statusData.status);
+				}
 			})
 			.catch((error) => {
 				setUseError(error.message || 'Unable to mark this referral as used.');

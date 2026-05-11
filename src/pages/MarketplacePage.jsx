@@ -10,6 +10,7 @@ import {
 	cancelReservation,
 	fetchMarketplaceReferrals,
 	fetchMyReservations,
+	fetchOnchainStatus,
 	reserveReferral,
 } from '../services/referralService.js';
 import '../styles/dashboard.css';
@@ -20,6 +21,35 @@ const reserveErrorMessages = {
 	'Maximum 2 active reservations allowed': 'You already have the maximum 2 active reservations.',
 	'Invalid wallet address': 'Your connected wallet address was rejected by the server.',
 };
+
+async function applyOnchainStatuses(referrals) {
+	const statusResults = await Promise.all(
+		referrals.map((referral) =>
+			fetchOnchainStatus(referral.id)
+				.then((onchainStatus) => ({ id: referral.id, onchainStatus }))
+				.catch(() => ({ id: referral.id, onchainStatus: null }))
+		)
+	);
+	const statusesById = new Map(statusResults.map((result) => [result.id, result.onchainStatus]));
+
+	return referrals.map((referral) => {
+		const onchainStatus = statusesById.get(referral.id);
+
+		if (!onchainStatus?.status) {
+			return referral;
+		}
+
+		return {
+			...referral,
+			status: onchainStatus.status,
+			commitmentHash: onchainStatus.commitmentHash || referral.commitmentHash,
+			raw: {
+				...referral.raw,
+				onchainStatus: onchainStatus.raw,
+			},
+		};
+	});
+}
 
 function MarketplacePage({ onReserveReferral, backendStatus = 'loading' }) {
 	const { walletAddress, disconnectWallet } = useWallet();
@@ -49,7 +79,8 @@ function MarketplacePage({ onReserveReferral, backendStatus = 'loading' }) {
 
 			try {
 				const referrals = await fetchMarketplaceReferrals();
-				setMarketplaceItems(referrals);
+				const referralsWithOnchainStatus = await applyOnchainStatuses(referrals);
+				setMarketplaceItems(referralsWithOnchainStatus);
 				setError('');
 			} catch (requestError) {
 				setError(requestError.message || 'Unable to load marketplace referrals.');
@@ -70,7 +101,8 @@ function MarketplacePage({ onReserveReferral, backendStatus = 'loading' }) {
 
 		try {
 			const myReservations = await fetchMyReservations(walletAddress);
-			setReservations(myReservations);
+			const reservationsWithOnchainStatus = await applyOnchainStatuses(myReservations);
+			setReservations(reservationsWithOnchainStatus);
 			setReservationsError('');
 		} catch (requestError) {
 			setReservationsError(requestError.message || 'Unable to load your reservations.');

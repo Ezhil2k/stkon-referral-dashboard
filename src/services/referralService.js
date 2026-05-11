@@ -291,6 +291,40 @@ export async function markReferralUsed(walletAddress, referralId) {
 	}
 }
 
+export async function fetchOnchainStatus(referralId) {
+	const apiName = 'fetchOnchainStatus';
+	const url = `${BASE_URL}/onchain-status/${encodeURIComponent(referralId)}`;
+
+	console.log('FETCH ONCHAIN STATUS', referralId);
+	logApiRequest(apiName, 'GET', url, { referralId });
+
+	try {
+		const response = await apiRequest(`/onchain-status/${encodeURIComponent(referralId)}`);
+
+		console.log('ONCHAIN STATUS RESPONSE', response.data);
+		logApiResponse(apiName, response);
+
+		if (!response?.success) {
+			throw new Error(response?.message || 'Unable to fetch on-chain referral status.');
+		}
+
+		const item = response?.data || {};
+
+		return {
+			id: item.referralId || item._id || item.id || referralId,
+			referralId: item.referralId || item._id || item.id || referralId,
+			label: item.label,
+			commitmentHash: item.commitmentHash,
+			status: item.status,
+			raw: item,
+		};
+	} catch (error) {
+		console.error('ONCHAIN STATUS ERROR', error.response?.data || error);
+		logApiError(apiName, error);
+		throw error;
+	}
+}
+
 export async function finalizeReferrals(referralIds) {
 	const apiName = 'finalizeReferrals';
 	const url = `${BASE_URL}/finalize`;

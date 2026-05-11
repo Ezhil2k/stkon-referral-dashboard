@@ -5,10 +5,16 @@ import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
 import GenerateReferralModal from '../components/dashboard/GenerateReferralModal.jsx';
 import { createReferralCommitment } from '../services/blockchainService.js';
-import { fetchMyReferrals, finalizeReferrals, generateReferrals } from '../services/referralService.js';
+import {
+	fetchMyReferrals,
+	fetchOnchainStatus,
+	finalizeReferrals,
+	generateReferrals,
+} from '../services/referralService.js';
 import '../styles/dashboard.css';
 
 const statusColors = {
+	pending: '#7f8c8d',
 	available: '#2ecc40',
 	reserved: '#f1c40f',
 	used: '#e74c3c',
@@ -17,7 +23,6 @@ const statusColors = {
 	tx_pending: '#3498db',
 	transaction_pending: '#3498db',
 	finalizing: '#9b59b6',
-	active: '#2ecc40',
 	failed: '#e74c3c',
 	finalization_failed: '#e74c3c',
 };
@@ -28,7 +33,6 @@ const activationLabels = {
 	tx_pending: 'Transaction pending...',
 	transaction_pending: 'Transaction pending...',
 	finalizing: 'Finalizing referrals...',
-	active: 'Referral active',
 	failed: 'Activation failed',
 	finalization_failed: 'Finalization failed',
 };
@@ -63,6 +67,54 @@ function ActivationStatus({ status }) {
 	);
 }
 
+async function applyOnchainStatuses(referrals) {
+	const statusResults = await Promise.all(
+		referrals.map((referral) =>
+			fetchOnchainStatus(referral.id)
+				.then((onchainStatus) => ({ id: referral.id, onchainStatus }))
+				.catch(() => ({ id: referral.id, onchainStatus: null }))
+		)
+	);
+	const statusesById = new Map(statusResults.map((result) => [result.id, result.onchainStatus]));
+
+	return referrals.map((referral) => {
+		const onchainStatus = statusesById.get(referral.id);
+
+		if (!onchainStatus?.status) {
+			return referral;
+		}
+
+		return {
+			...referral,
+			status: onchainStatus.status,
+			commitmentHash: onchainStatus.commitmentHash || referral.commitmentHash,
+			raw: {
+				...referral.raw,
+				onchainStatus: onchainStatus.raw,
+			},
+		};
+	});
+}
+
+async function refetchFinalizedOnchainStatuses(referralIds) {
+	const statusResults = await Promise.all(
+		referralIds.map((referralId) => {
+			console.log('REFETCHING STATUS AFTER FINALIZE', referralId);
+			return fetchOnchainStatus(referralId)
+				.then((statusData) => {
+					console.log('FINAL STATUS RESPONSE', statusData);
+					return { referralId, statusData };
+				})
+				.catch((error) => {
+					console.error('FINAL STATUS RESPONSE', error.response?.data || error);
+					return { referralId, statusData: null };
+				});
+		})
+	);
+
+	return new Map(statusResults.map(({ referralId, statusData }) => [referralId, statusData]));
+}
+
 function DashboardPage({ backendStatus = 'loading' }) {
 	const { walletAddress, isSupernode, roleChecking, roleError, disconnectWallet } = useWallet();
 	const navigate = useNavigate();
@@ -84,10 +136,11 @@ function DashboardPage({ backendStatus = 'loading' }) {
 		}
 
 		const myReferrals = await fetchMyReferrals(walletAddress);
+		const referralsWithOnchainStatus = await applyOnchainStatuses(myReferrals);
 		if (apply) {
-			setReferrals(myReferrals);
+			setReferrals(referralsWithOnchainStatus);
 		}
-		return myReferrals;
+		return referralsWithOnchainStatus;
 	}, [walletAddress, isSupernode]);
 
 	const updateReferralActivationStatus = (id, activationStatus, extraFields = {}) => {
@@ -217,22 +270,28 @@ function DashboardPage({ backendStatus = 'loading' }) {
 			});
 
 			try {
-				const finalizedReferrals = await finalizeReferrals(successfulReferralIds);
-				const finalizedById = new Map(finalizedReferrals.map((referral) => [referral.id, referral]));
+				await finalizeReferrals(successfulReferralIds);
+				console.log('REMOVED LOCAL ACTIVE STATUS MUTATION AFTER FINALIZE');
+				const finalStatusesById = await refetchFinalizedOnchainStatuses(successfulReferralIds);
 
 				setReferrals((currentReferrals) =>
 					currentReferrals.map((referral) => {
-						const finalizedReferral = finalizedById.get(referral.id);
+						const statusData = finalStatusesById.get(referral.id);
 
-						if (!finalizedReferral) {
+						if (!statusData?.status) {
 							return referral;
 						}
 
 						return {
 							...referral,
-							status: finalizedReferral.status || 'available',
-							activationStatus: 'active',
+							status: statusData.status,
+							activationStatus: '',
 							activationError: '',
+							commitmentHash: statusData.commitmentHash || referral.commitmentHash,
+							raw: {
+								...referral.raw,
+								onchainStatus: statusData.raw,
+							},
 						};
 					})
 				);
@@ -244,8 +303,8 @@ function DashboardPage({ backendStatus = 'loading' }) {
 				try {
 					const refreshedReferrals = await loadMyReferrals({ apply: false });
 					setReferrals(refreshedReferrals.map((referral) =>
-						finalizedById.has(referral.id)
-							? { ...referral, activationStatus: 'active', activationError: '' }
+						finalStatusesById.get(referral.id)?.status
+							? { ...referral, activationStatus: '', activationError: '' }
 							: referral
 					));
 				} catch (refreshError) {
@@ -343,7 +402,7 @@ function DashboardPage({ backendStatus = 'loading' }) {
 										<p className="referral-meta">Created {r.createdAt}</p>
 										<ActivationStatus status={r.activationStatus} />
 									</div>
-									<Badge status={r.activationStatus || r.status} />
+									<Badge status={r.status} />
 								</div>
 								<div className="referral-wallet">
 									<span>Reserved wallet</span>
