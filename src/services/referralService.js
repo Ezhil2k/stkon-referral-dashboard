@@ -56,7 +56,7 @@ export async function fetchMarketplaceReferrals() {
 		const referrals = Array.isArray(response?.data) ? response.data : [];
 
 		return referrals.map((item) => ({
-			id: item._id,
+			id: item._id || item.id,
 			label: item.label,
 			referrer: item.referrerAddress,
 			status: item.status,
@@ -286,6 +286,41 @@ export async function markReferralUsed(walletAddress, referralId) {
 			raw: item,
 		};
 	} catch (error) {
+		logApiError(apiName, error);
+		throw error;
+	}
+}
+
+export async function finalizeReferrals(referralIds) {
+	const apiName = 'finalizeReferrals';
+	const url = `${BASE_URL}/finalize`;
+	const payload = { referralIds };
+
+	console.log('FINALIZE REFERRALS IDS', referralIds);
+	logApiRequest(apiName, 'POST', url, payload);
+
+	try {
+		const response = await apiRequest('/finalize', {
+			method: 'POST',
+			body: JSON.stringify(payload),
+		});
+
+		console.log('FINALIZE RESPONSE', response.data);
+		logApiResponse(apiName, response);
+
+		if (!response?.success) {
+			throw new Error(response?.message || 'Unable to finalize referrals.');
+		}
+
+		const referrals = Array.isArray(response?.data) ? response.data : [];
+
+		return referrals.map((item) => ({
+			id: item._id || item.id,
+			status: item.status,
+			raw: item,
+		}));
+	} catch (error) {
+		console.error('FINALIZE ERROR', error.response?.data || error);
 		logApiError(apiName, error);
 		throw error;
 	}

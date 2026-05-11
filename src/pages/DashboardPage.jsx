@@ -1,11 +1,11 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import BackendStatus from '../components/common/BackendStatus.jsx';
 import GenerateReferralModal from '../components/dashboard/GenerateReferralModal.jsx';
 import { createReferralCommitment } from '../services/blockchainService.js';
-import { fetchMyReferrals, generateReferrals } from '../services/referralService.js';
+import { fetchMyReferrals, finalizeReferrals, generateReferrals } from '../services/referralService.js';
 import '../styles/dashboard.css';
 
 const statusColors = {
@@ -14,17 +14,23 @@ const statusColors = {
 	used: '#e74c3c',
 	generating: '#7f8c8d',
 	awaiting_signature: '#f39c12',
+	tx_pending: '#3498db',
 	transaction_pending: '#3498db',
+	finalizing: '#9b59b6',
 	active: '#2ecc40',
 	failed: '#e74c3c',
+	finalization_failed: '#e74c3c',
 };
 
 const activationLabels = {
 	generating: 'Generating...',
 	awaiting_signature: 'Waiting for wallet signature...',
+	tx_pending: 'Transaction pending...',
 	transaction_pending: 'Transaction pending...',
+	finalizing: 'Finalizing referrals...',
 	active: 'Referral active',
 	failed: 'Activation failed',
+	finalization_failed: 'Finalization failed',
 };
 
 function StatCard({ label, value }) {
@@ -68,6 +74,22 @@ function DashboardPage({ backendStatus = 'loading' }) {
 	const [generateError, setGenerateError] = useState('');
 	const [, setGeneratedReferrals] = useState([]);
 
+	const loadMyReferrals = useCallback(async ({ apply = true } = {}) => {
+		if (!walletAddress || isSupernode !== true) {
+			if (apply) {
+				setReferrals([]);
+				setIsReferralsLoading(false);
+			}
+			return [];
+		}
+
+		const myReferrals = await fetchMyReferrals(walletAddress);
+		if (apply) {
+			setReferrals(myReferrals);
+		}
+		return myReferrals;
+	}, [walletAddress, isSupernode]);
+
 	const updateReferralActivationStatus = (id, activationStatus, extraFields = {}) => {
 		setReferrals((currentReferrals) =>
 			currentReferrals.map((referral) =>
@@ -94,7 +116,7 @@ function DashboardPage({ backendStatus = 'loading' }) {
 		setIsReferralsLoading(true);
 		setReferralsError('');
 
-		fetchMyReferrals(walletAddress)
+		loadMyReferrals({ apply: false })
 			.then((myReferrals) => {
 				if (!isMounted) return;
 				setReferrals(myReferrals);
@@ -112,7 +134,7 @@ function DashboardPage({ backendStatus = 'loading' }) {
 		return () => {
 			isMounted = false;
 		};
-	}, [walletAddress, isSupernode]);
+	}, [walletAddress, isSupernode, loadMyReferrals]);
 
 	const stats = useMemo(() => {
 		const total = referrals.length;
@@ -153,6 +175,8 @@ function DashboardPage({ backendStatus = 'loading' }) {
 			setGeneratedReferrals(pendingReferrals);
 			setIsGenerateModalOpen(false);
 
+			const successfullyConfirmedReferrals = [];
+
 			for (const referral of pendingReferrals) {
 				if (!referral.commitmentHash) {
 					continue;
@@ -164,12 +188,13 @@ function DashboardPage({ backendStatus = 'loading' }) {
 					const receipt = await createReferralCommitment(referral.commitmentHash, {
 						onSubmitted: (tx) => {
 							submittedTxHash = tx.hash;
-							updateReferralActivationStatus(referral.id, 'transaction_pending', {
+							updateReferralActivationStatus(referral.id, 'tx_pending', {
 								activationTxHash: tx.hash,
 							});
 						},
 					});
-					updateReferralActivationStatus(referral.id, 'active', {
+					successfullyConfirmedReferrals.push(referral);
+					updateReferralActivationStatus(referral.id, 'tx_pending', {
 						activationReceipt: receipt,
 						activationTxHash: receipt?.hash || receipt?.transactionHash || submittedTxHash,
 						activationError: '',
@@ -179,6 +204,60 @@ function DashboardPage({ backendStatus = 'loading' }) {
 						activationError: error.message || 'Activation failed.',
 					});
 				}
+			}
+
+			if (successfullyConfirmedReferrals.length === 0) {
+				return;
+			}
+
+			const successfulReferralIds = successfullyConfirmedReferrals.map((referral) => referral.id);
+
+			successfulReferralIds.forEach((id) => {
+				updateReferralActivationStatus(id, 'finalizing');
+			});
+
+			try {
+				const finalizedReferrals = await finalizeReferrals(successfulReferralIds);
+				const finalizedById = new Map(finalizedReferrals.map((referral) => [referral.id, referral]));
+
+				setReferrals((currentReferrals) =>
+					currentReferrals.map((referral) => {
+						const finalizedReferral = finalizedById.get(referral.id);
+
+						if (!finalizedReferral) {
+							return referral;
+						}
+
+						return {
+							...referral,
+							status: finalizedReferral.status || 'available',
+							activationStatus: 'active',
+							activationError: '',
+						};
+					})
+				);
+
+				window.dispatchEvent(new CustomEvent('referrals:finalized', {
+					detail: { referralIds: successfulReferralIds },
+				}));
+
+				try {
+					const refreshedReferrals = await loadMyReferrals({ apply: false });
+					setReferrals(refreshedReferrals.map((referral) =>
+						finalizedById.has(referral.id)
+							? { ...referral, activationStatus: 'active', activationError: '' }
+							: referral
+					));
+				} catch (refreshError) {
+					console.error('DASHBOARD REFERRALS REFRESH ERROR', refreshError);
+				}
+			} catch (error) {
+				successfulReferralIds.forEach((id) => {
+					updateReferralActivationStatus(id, 'finalization_failed', {
+						activationError: error.message || 'Finalization failed.',
+					});
+				});
+				setGenerateError(error.message || 'Finalization failed. Referrals remain generated and can be retried later.');
 			}
 		} catch (error) {
 			setGenerateError(error.message || 'Unable to generate referrals.');

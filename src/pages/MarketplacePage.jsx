@@ -101,6 +101,18 @@ function MarketplacePage({ onReserveReferral, backendStatus = 'loading' }) {
 		};
 	}, [loadMarketplace, loadReservations]);
 
+	useEffect(() => {
+		const handleReferralsFinalized = () => {
+			loadMarketplace({ silent: true });
+		};
+
+		window.addEventListener('referrals:finalized', handleReferralsFinalized);
+
+		return () => {
+			window.removeEventListener('referrals:finalized', handleReferralsFinalized);
+		};
+	}, [loadMarketplace]);
+
 	const filteredItems = useMemo(() => {
 		const normalizedSearch = search.trim().toLowerCase();
 
