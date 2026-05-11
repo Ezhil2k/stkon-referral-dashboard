@@ -11,7 +11,11 @@ function getEthereumProvider() {
 }
 
 function normalizeProviderError(error, fallbackMessage) {
-  if (error?.code === 4001) {
+  if (error?.code === 4001 || error?.code === 'ACTION_REJECTED') {
+    return new Error('Wallet access rejected');
+  }
+
+  if (error?.info?.error?.code === 4001) {
     return new Error('Wallet access rejected');
   }
 
@@ -51,5 +55,23 @@ export async function getReferralManagerContract() {
     );
   } catch (error) {
     throw normalizeProviderError(error, 'Unable to create referral manager contract');
+  }
+}
+
+export async function createReferralCommitment(commitmentHash, options = {}) {
+  console.log('CREATE REFERRAL COMMITMENT', commitmentHash);
+
+  try {
+    const contract = await getReferralManagerContract();
+    const tx = await contract.createReferralCommitment(commitmentHash);
+    console.log('TX SUBMITTED', tx.hash);
+    options.onSubmitted?.(tx);
+
+    const receipt = await tx.wait();
+    console.log('TX CONFIRMED', receipt);
+
+    return receipt;
+  } catch (error) {
+    throw normalizeProviderError(error, 'Unable to create referral commitment');
   }
 }
